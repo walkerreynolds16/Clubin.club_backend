@@ -1,0 +1,7 @@
+eventlet==0.24.1
+Flask_SocketIO==3.0.2
+Flask_Cors==3.0.6
+requests==2.19.1
+pymongo==3.7.2
+isodate==0.6.0
+Flask==1.0.2
