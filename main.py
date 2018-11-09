@@ -1,12 +1,10 @@
 import os
-
 os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
-
 
 from flask import Flask, request, jsonify, json
 from flask_cors import CORS
 from pymongo import MongoClient
-from bson import ObjectId
+from bson import ObjectId, Timestamp
 from flask_socketio import SocketIO, send, emit
 import eventlet
 eventlet.monkey_patch()
@@ -28,6 +26,11 @@ currentVideoId = None
 clients = []
 djQueue = []
 
+# thebigcluster-x0vu6.mongodb.net
+# mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true
+DBURL = "mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true"
+
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'onesouth'
 socketio = SocketIO(app)
@@ -36,7 +39,7 @@ CORS(app)
 
 @app.route('/getPlaylists')
 def getPlaylists():
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     collection = db['playlists']
@@ -62,7 +65,7 @@ def addVideoToPlaylist():
         playlistTitle = 'default'
 
     # Connect to database and get instance of the DB
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     # Get instance of the playlist collection
@@ -97,7 +100,7 @@ def setPlaylist():
     username = request.json['username']
 
     # Connect to database and get instance of the DB
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     # Get instance of the playlist collection
@@ -134,7 +137,7 @@ def deleteVideoInPlaylist():
     videoTitle = request.json['videoTitle']
 
     # Connect to database and get instance of the DB
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     # Get instance of the playlist collection
@@ -162,7 +165,7 @@ def setCurrentPlaylist():
     print(playlist)
 
     # Connect to database and get instance of the DB
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     # Get instance of the playlist collection
@@ -186,7 +189,7 @@ def login():
     password = request.json['password']
 
     # Connect to database and get instance of the DB
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     # Get instance of the playlist collection
@@ -308,7 +311,7 @@ def sendNewVideoToClients(nextUser):
 
     currentPlaylist = None
 
-    client = MongoClient("localhost:27017")
+    client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
 
     collection = db['playlists']
@@ -396,7 +399,7 @@ def getVideoDuration(videoId):
 
 class JSONEncoder(json.JSONEncoder):
     def default(self, o):
-        if isinstance(o, ObjectId):
+        if isinstance(o, ObjectId) or isinstance(o, Timestamp) or isinstance(o, bytes):
             return str(o)
         return json.JSONEncoder.default(self, o)
 
