@@ -24,6 +24,7 @@ isSomeoneDJing = False
 currentDJ = ''
 currentVideoStartTime = None
 currentVideoId = None
+delayTime = 1.0
 
 clients = []
 djQueue = []
@@ -110,26 +111,37 @@ def setPlaylist():
     # Get instance of the playlist collection
     collection = db['playlists']
 
-    doesPlaylistExist = collection.find_one(
-        {'$and': [{'playlists.playlistTitle': playlistTitle}, {'username': username}]})
-    print(doesPlaylistExist)
-    result = None
+    # Check if user exists yet
+    doesUserExist = collection.find_one({'username': username})
 
-    if(doesPlaylistExist == None):
-        newPlaylist = {'playlistTitle': playlistTitle,
-                       'playlistVideos': playlistVideos}
-        result = collection.update_one(
-            {'username': username},
-            {'$push': {'playlists': newPlaylist}})
+    # If user doesn't exist, make a new document for them
+    if(not doesUserExist):
+        playlist = {'playlistTitle': playlistTitle, 'playlistVideos': playlistVideos}
+        result = collection.insert_one({'username': username, 'playlists': [playlist], 'currentPlaylist': playlist})
+        return JSONEncoder().encode(result.acknowledged)
 
-    else:
-        result = collection.update_one(
-            {'$and': [{'playlists.playlistTitle': playlistTitle},
-                      {'username': username}]},
-            {'$set': {'playlists.$.playlistVideos': playlistVideos}},
-            upsert=True)
+    else: # If user exist, just set the playlist like normal
+        doesPlaylistExist = collection.find_one({'$and': [{'playlists.playlistTitle': playlistTitle}, {'username': username}]})
+        # print(doesPlaylistExist)
+        result = None
 
-    return JSONEncoder().encode(result.raw_result)
+        if(doesPlaylistExist == None):
+            newPlaylist = {'playlistTitle': playlistTitle,
+                        'playlistVideos': playlistVideos}
+            result = collection.update_one(
+                {'username': username},
+                {'$push': {'playlists': newPlaylist}})
+
+        else:
+            result = collection.update_one(
+                {'$and': [{'playlists.playlistTitle': playlistTitle},
+                        {'username': username}]},
+                {'$set': {'playlists.$.playlistVideos': playlistVideos}},
+                upsert=True)
+
+        return JSONEncoder().encode(result.raw_result)
+
+    
 
 
 @app.route('/deleteVideoInPlaylist', methods=['POST'])
@@ -166,7 +178,7 @@ def setCurrentPlaylist():
     playlist = request.json['newCurrentPlaylist']
     username = request.json['username']
 
-    print(playlist)
+    # print(playlist)
 
     # Connect to database and get instance of the DB
     client = MongoClient(DBURL + ":27017")
@@ -184,7 +196,9 @@ def setCurrentPlaylist():
 
         return JSONEncoder().encode(res.raw_result)
     else:
-        return ('user does not exist')
+        return "User doesn't exist yet"
+
+
 
 
 @app.route('/login', methods=['POST'])
@@ -204,10 +218,13 @@ def login():
 
     print("logging in...")
 
-    # The username does not exist
+    # The username does not exist, make a new entry in the accounts DB
     if(doesUsernameExist == None):
         result = collection.insert_one(
             {'username': username, 'password': password})
+
+        # To make things easier down the line, generate a new playlists record in the db
+        # generateNewPlaylistRecord(username)
         return 'success'
 
     else:
@@ -217,6 +234,22 @@ def login():
         else:
             print("***** Wrong Password ******")
             return 'failure'
+
+
+def generateNewPlaylistRecord(username):
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    # Get instance of the playlist collection
+    collection = db['playlists']
+
+    document = {"username":username, "playlists":[], "currentPlaylist":{"playlistTitle":"default", "playlistVideos":[]}}
+
+    result = collection.insert_one(document)
+
+    print("Generating new playlist record result")
+    print(result)
+
 
 @app.route('/getCurrentVideo', methods=['GET'])
 def getCurrentVideoPlaying():
@@ -281,22 +314,29 @@ def handleChatMessage(data):
 
 @socketio.on('Event_leaveDJ')
 def handleLeavingDJ(data):
+    
     print(json.dumps(data))
 
     global currentDJ
 
     user = data['user']
-    print(user)
+    print(user + " is leaving")
 
     if(user == currentDJ):
         currentDJ = ''
     else:
         djQueue.remove(user)
 
+
+    print("DJ Queue after leaving")
+    print(djQueue)
+
     global isSomeoneDJing
 
     if(len(djQueue) == 0):
         isSomeoneDJing = False
+
+    determineNextVideo()
 
 @socketio.on('Event_skipCurrentVideo')
 def handleSkipRequest(data):
@@ -344,7 +384,7 @@ def sendNewVideoToClients(nextUser):
 
     print("Username = " + str(data['username']))
     print("Video Id = " + str(data['videoId']))
-    print("Video Title = " + str(data['videoTitle']))
+    print("Video Title = " + str(data['videoTitle'].encode("utf-8")))
     global currentDJ
     print("Current DJ = " + str(currentDJ))
 
@@ -356,9 +396,10 @@ def sendNewVideoToClients(nextUser):
 
 
     global currentVideoStartTime
+    global delayTime
 
     duration = getVideoDuration(data['videoId'])
-    videoTimer = threading.Timer(duration + 4.0, determineNextVideo)
+    videoTimer = threading.Timer(duration + delayTime, determineNextVideo)
     videoTimer.start()
     currentVideoStartTime = time.time()
 
@@ -373,20 +414,33 @@ def determineNextVideo():
     global currentDJ
     global currentVideoId
 
+    print("** Determining next video **")
     print('Current DJ in determineVideo = ' + currentDJ)
+
     if(currentDJ != ''):
+        print("Adding " + currentDJ + " to queue")
         djQueue.append(currentDJ)
 
+    print("Current DJ Queue")
     print(djQueue)
 
     if(len(djQueue) != 0):
         nextUser = djQueue.pop(0)
-        currentUser = nextUser
+        currentDJ = nextUser
         sendNewVideoToClients(nextUser)
-        djQueue.append(nextUser)
+        # djQueue.append(nextUser)
     else:
         currentVideoId = None
         print('No more DJs in queue')
+        # stopVideo()
+
+def stopVideo():
+    # This works but it isn't graceful
+    # data = {'videoId': '', 'videoTitle': '', 'username': ''}
+    # socketio.emit('Event_nextVideo', data, broadcast=True)
+    print("Stopping video")
+    socketio.emit('Event_stopVideo', broadcast=True)
+    
 
 
 def getVideoDuration(videoId):
