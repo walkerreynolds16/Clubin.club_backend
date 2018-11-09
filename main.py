@@ -1,5 +1,6 @@
 import eventlet
 eventlet.monkey_patch()
+
 import os
 os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
 
@@ -8,7 +9,6 @@ from flask_cors import CORS
 from pymongo import MongoClient
 from bson import ObjectId, Timestamp
 from flask_socketio import SocketIO, send, emit
-import eventlet
 
 
 import isodate
