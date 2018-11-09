@@ -1,3 +1,4 @@
+import eventlet
 eventlet.monkey_patch()
 import os
 os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
