@@ -1,3 +1,4 @@
+eventlet.monkey_patch()
 import os
 os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
 
@@ -7,7 +8,7 @@ from pymongo import MongoClient
 from bson import ObjectId, Timestamp
 from flask_socketio import SocketIO, send, emit
 import eventlet
-eventlet.monkey_patch()
+
 
 import isodate
 import json
@@ -25,6 +26,8 @@ currentVideoId = None
 
 clients = []
 djQueue = []
+
+# https://git.heroku.com/plug-dj-clone-api.git
 
 # thebigcluster-x0vu6.mongodb.net
 # mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true
