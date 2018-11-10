@@ -25,6 +25,9 @@ currentDJ = ''
 currentVideoStartTime = None
 currentVideoId = None
 delayTime = 1.0
+currentVideoTitle = ''
+
+videoTimer = None
 
 clients = []
 djQueue = []
@@ -255,12 +258,15 @@ def generateNewPlaylistRecord(username):
 def getCurrentVideoPlaying():
     global currentVideoStartTime
     global currentVideoId
+    global currentDJ
+    global currentVideoTitle
 
     if(currentVideoId != None):
         currentTime = time.time()
         timeElapsed = int(currentTime - currentVideoStartTime)
 
-        videoData = {'videoId': currentVideoId, 'startTime': timeElapsed}
+
+        videoData = {'videoId': currentVideoId, 'startTime': timeElapsed, 'currentDJ': currentDJ, 'currentVideoTitle': currentVideoTitle}
         return json.dumps(videoData)
     else:
         # No video is playing
@@ -273,10 +279,49 @@ def getCurrentVideoPlaying():
 
 
 
-@socketio.on('connected')
+@socketio.on('Event_userConnected')
 def handleConnection(user):
+    print(user + ' is connecting')
+
     clients.append({'user': user, 'clientId': request.sid})
-    send(user, broadcast=True)
+
+    print("clients")
+    print(clients)
+
+    data = {'user': user, 'clients': clients}
+
+    socketio.emit('Event_userConnecting', data, broadcast=True)
+
+
+@socketio.on('Event_userDisconnected')
+def handleDisconnection(user):
+    print(user + " has disconnected")
+    
+    # find user in clients and remove them
+    for item in clients:
+        if(item['user'] == user):
+            clients.remove(item)
+
+    global currentDJ
+    global isSomeoneDJing
+
+    if(user == currentDJ):
+        currentDJ = ''
+        isSomeoneDJing = False
+        determineNextVideo()
+
+    stopVideo()
+
+
+    print("clients")
+    print(clients)
+
+    handleChatMessage({'user': 'server', 'message': user + ' has disconnected'})
+
+    data = {'user': user, 'clients': clients}
+
+    socketio.emit('Event_userDisconnecting', data, broadcast=True)
+
 
 
 @socketio.on('Event_joinDJ')
@@ -300,13 +345,17 @@ def handleJoinDJ(data):
         print('CurrentDJ in handle join dj = ' + currentDJ)
         sendNewVideoToClients(nextDJ)
         isSomeoneDJing = True
-        # djQueue.append(nextDJ)
+
+
+    socketio.emit('Event_DJQueueChanging', djQueue, broadcast=True)
 
 
 @socketio.on('Event_sendChatMessage')
 def handleChatMessage(data):
     user = data['user']
     message = data['message']
+
+    print(user + ' : ' + message)
 
     emit('Event_receiveChatMessage', {
          'user': user, 'message': message}, broadcast=True)
@@ -326,6 +375,7 @@ def handleLeavingDJ(data):
         currentDJ = ''
     else:
         djQueue.remove(user)
+        socketio.emit('Event_DJQueueChanging', djQueue, broadcast=True)
 
 
     print("DJ Queue after leaving")
@@ -336,7 +386,9 @@ def handleLeavingDJ(data):
     if(len(djQueue) == 0):
         isSomeoneDJing = False
 
+
     determineNextVideo()
+    
 
 @socketio.on('Event_skipCurrentVideo')
 def handleSkipRequest(data):
@@ -378,7 +430,9 @@ def sendNewVideoToClients(nextUser):
     data = {'videoId': nextVideo['videoId'], 'videoTitle': nextVideo['videoTitle'], 'username': nextUser}
 
     global currentVideoId
+    global currentVideoTitle
     currentVideoId = data['videoId']
+    currentVideoTitle = data['videoTitle']
 
     print('\n ****************** \n')
 
@@ -397,8 +451,11 @@ def sendNewVideoToClients(nextUser):
 
     global currentVideoStartTime
     global delayTime
+    global videoTimer
 
     duration = getVideoDuration(data['videoId'])
+
+    print('Video Duration = ' + str(duration))
     videoTimer = threading.Timer(duration + delayTime, determineNextVideo)
     videoTimer.start()
     currentVideoStartTime = time.time()
@@ -428,17 +485,23 @@ def determineNextVideo():
         nextUser = djQueue.pop(0)
         currentDJ = nextUser
         sendNewVideoToClients(nextUser)
-        # djQueue.append(nextUser)
+        
+        socketio.emit('Event_DJQueueChanging', djQueue, broadcast=True)
     else:
         currentVideoId = None
         print('No more DJs in queue')
-        # stopVideo()
+        stopVideo()
 
 def stopVideo():
     # This works but it isn't graceful
     # data = {'videoId': '', 'videoTitle': '', 'username': ''}
     # socketio.emit('Event_nextVideo', data, broadcast=True)
     print("Stopping video")
+    global videoTimer
+    if(videoTimer != None):
+        videoTimer.cancel()
+        videoTimer = None
+    
     socketio.emit('Event_stopVideo', broadcast=True)
     
 
