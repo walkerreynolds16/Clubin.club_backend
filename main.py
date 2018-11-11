@@ -38,7 +38,7 @@ unfinishedClients = []
 # thebigcluster-x0vu6.mongodb.net
 # mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true
 DBURL = "mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true"
-
+# DBURL = 'localhost'
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'onesouth'
@@ -273,6 +273,73 @@ def getCurrentVideoPlaying():
         # No video is playing
         return 'No one playing'
 
+@app.route('/getYoutubePlaylist', methods=['GET'])
+def getYoutubePlaylist():
+    playlistId = request.args['playlistId']
+    playlist = createYoutubePlaylistObject(playlistId)
+
+    return JSONEncoder().encode(playlist)
+
+@app.route('/createPlugDJPlaylistFromYoutubePlaylist', methods=['POST'])
+def createPlugDJPlaylistFromYoutubePlaylist():
+    playlistId = request.json['playlistId']
+    newPlaylistTitle = request.json['newPlaylistTitle']
+    username = request.json['username']
+
+    # Create playlist Object from YouTube data
+    newPlaylistVideos = createYoutubePlaylistObject(playlistId)
+
+    newPlaylist = {'playlistVideos': newPlaylistVideos, 'playlistTitle': newPlaylistTitle}
+
+    # Connect to database and get instance of the DB
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    # Get instance of the playlist collection
+    collection = db['playlists']
+
+    doesUserExist = collection.find_one({'username': username})
+
+    if(not doesUserExist):
+        return 'User does not exist'
+    else:
+        res = collection.update_one({'username': username}, {'$push': {'playlists': newPlaylist}})
+        return JSONEncoder().encode(res.raw_result)
+
+
+def createYoutubePlaylistObject(playlistId):
+    numOfResults = 50
+    pageToken = ''
+    finished = False
+    playlist = []
+
+    while(not finished):
+        # Get json data for the next 50 videos in the playlist
+        res = executeRequest(playlistId, numOfResults, pageToken)
+        
+        # If nextPageToken is not in the response, then we have received all of the videos and can now finish our requests
+        if('nextPageToken' not in res):
+            finished = True
+        else:
+            pageToken = res['nextPageToken']
+
+        # Extract the data that we want from the response and add it to a playlist list
+        for item in res['items']:
+            videoId = item['snippet']['resourceId']['videoId']
+            videoTitle = item['snippet']['title']
+
+            video = {'videoTitle': videoTitle, 'videoId': videoId}
+            playlist.append(video)
+
+
+    return playlist
+    
+
+def executeRequest(playlistId, numOfResults, nextPageToken=''):
+    url = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=' + playlistId + '&key=' + youtubeAPIKey + '&maxResults=' + str(numOfResults) + '&pageToken=' + nextPageToken
+    r = requests.get(url)
+    return json.loads(r.text)
+
 
 @socketio.on('Event_userConnected')
 def handleConnection(user):
@@ -395,12 +462,6 @@ def handleLeavingDJ(data):
     print("DJ Queue after leaving")
     print(djQueue)
         
-
-    
-
-
-    
-    
 
 @socketio.on('Event_skipCurrentVideo')
 def handleSkipRequest(data):
