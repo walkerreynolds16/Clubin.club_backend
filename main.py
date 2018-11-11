@@ -31,6 +31,7 @@ videoTimer = None
 
 clients = []
 djQueue = []
+unfinishedClients = []
 
 # https://git.heroku.com/plug-dj-clone-api.git
 
@@ -217,9 +218,9 @@ def login():
     collection = db['accounts']
 
     doesUsernameExist = collection.find_one({'username': username})
-    print(JSONEncoder().encode(doesUsernameExist))
+    # print(JSONEncoder().encode(doesUsernameExist))
 
-    print("logging in...")
+    # print("logging in...")
 
     # The username does not exist, make a new entry in the accounts DB
     if(doesUsernameExist == None):
@@ -232,10 +233,10 @@ def login():
 
     else:
         if(doesUsernameExist['password'] == password):
-            print("***** Right Password ******")
+            # print("***** Right Password ******")
             return 'success'
         else:
-            print("***** Wrong Password ******")
+            # print("***** Wrong Password ******")
             return 'failure'
 
 
@@ -273,17 +274,15 @@ def getCurrentVideoPlaying():
         return 'No one playing'
 
 
-
-
-
-
-
-
 @socketio.on('Event_userConnected')
 def handleConnection(user):
     print(user + ' is connecting')
 
     clients.append({'user': user, 'clientId': request.sid})
+
+    # if someone is playing a video, the new connection must be added to the unfinished clients
+    if(isSomeoneDJing):
+        unfinishedClients.append({'user': user, 'clientId': request.sid})
 
     print("clients")
     print(clients)
@@ -295,6 +294,9 @@ def handleConnection(user):
 
 @socketio.on('Event_userDisconnected')
 def handleDisconnection(user):
+    global unfinishedClients
+    global clients
+
     print(user + " has disconnected")
     
     # find user in clients and remove them
@@ -302,15 +304,20 @@ def handleDisconnection(user):
         if(item['user'] == user):
             clients.remove(item)
 
+    for item in unfinishedClients:
+        if(item['user'] == user):
+            unfinishedClients.remove(item)
+
     global currentDJ
     global isSomeoneDJing
 
     if(user == currentDJ):
         currentDJ = ''
         isSomeoneDJing = False
+        stopVideo()
         determineNextVideo()
 
-    stopVideo()
+    
 
 
     print("clients")
@@ -355,7 +362,7 @@ def handleChatMessage(data):
     user = data['user']
     message = data['message']
 
-    print(user + ' : ' + message)
+    # print(user + ' : ' + message)
 
     emit('Event_receiveChatMessage', {
          'user': user, 'message': message}, broadcast=True)
@@ -367,12 +374,19 @@ def handleLeavingDJ(data):
     print(json.dumps(data))
 
     global currentDJ
+    global isSomeoneDJing
+    global unfinishedClients
 
     user = data['user']
-    print(user + " is leaving")
+    print(user + " is leaving the dj queue")
 
     if(user == currentDJ):
         currentDJ = ''
+        isSomeoneDJing = False
+        unfinishedClients = []
+
+        determineNextVideo()
+
     else:
         djQueue.remove(user)
         socketio.emit('Event_DJQueueChanging', djQueue, broadcast=True)
@@ -380,14 +394,12 @@ def handleLeavingDJ(data):
 
     print("DJ Queue after leaving")
     print(djQueue)
+        
 
-    global isSomeoneDJing
-
-    if(len(djQueue) == 0):
-        isSomeoneDJing = False
+    
 
 
-    determineNextVideo()
+    
     
 
 @socketio.on('Event_skipCurrentVideo')
@@ -395,8 +407,43 @@ def handleSkipRequest(data):
     # for now, i guess just determine the next video
     # TODO count the amount of skip requests and only skip when the majority of people want to skip
 
+    global unfinishedClients
+
+    unfinishedClients = []
+
+
     determineNextVideo()
 
+@socketio.on('Event_userFinishedVideo')
+def handleUserFinishingVideo(user):
+    global unfinishedClients
+    global clients
+
+    print(user + ' finishing watching the video')
+
+    for item in unfinishedClients:
+        if(item['user'] == user):
+            unfinishedClients.remove(item)
+
+    clientsLength = len(clients)
+    unfinishedClientsLength = len(unfinishedClients)
+    numOfFinishedClients = clientsLength - unfinishedClientsLength
+
+    print('All Clients')
+    print(clients)
+    print()
+
+    print('Unfinished clients')
+    print(unfinishedClients)
+    print()
+
+    finishedClientsPercentage = float(numOfFinishedClients / clientsLength)
+
+    print('finishedClientsPercentage = ' + str(finishedClientsPercentage))
+
+    if(finishedClientsPercentage >= .75):
+        determineNextVideo()
+    
 
 def sendNewVideoToClients(nextUser):
     # Get next video from next DJ
@@ -445,9 +492,13 @@ def sendNewVideoToClients(nextUser):
     print('\n ****************** \n')
 
     
-    print('\n emitting to clients \n')
+    print('emitting to clients \n')
     socketio.emit('Event_nextVideo', data, broadcast=True)
 
+    global unfinishedClients
+
+    # Adding all connected clients to a waiting list
+    unfinishedClients.extend(clients)
 
     global currentVideoStartTime
     global delayTime
@@ -456,8 +507,8 @@ def sendNewVideoToClients(nextUser):
     duration = getVideoDuration(data['videoId'])
 
     print('Video Duration = ' + str(duration))
-    videoTimer = threading.Timer(duration + delayTime, determineNextVideo)
-    videoTimer.start()
+    # videoTimer = threading.Timer(duration + delayTime, determineNextVideo)
+    # videoTimer.start()
     currentVideoStartTime = time.time()
 
     playlist['playlistVideos'].append(nextVideo)
@@ -470,6 +521,7 @@ def determineNextVideo():
     # print('timer done ***************')
     global currentDJ
     global currentVideoId
+    global isSomeoneDJing
 
     print("** Determining next video **")
     print('Current DJ in determineVideo = ' + currentDJ)
@@ -484,6 +536,7 @@ def determineNextVideo():
     if(len(djQueue) != 0):
         nextUser = djQueue.pop(0)
         currentDJ = nextUser
+        isSomeoneDJing = True
         sendNewVideoToClients(nextUser)
         
         socketio.emit('Event_DJQueueChanging', djQueue, broadcast=True)
@@ -497,10 +550,13 @@ def stopVideo():
     # data = {'videoId': '', 'videoTitle': '', 'username': ''}
     # socketio.emit('Event_nextVideo', data, broadcast=True)
     print("Stopping video")
-    global videoTimer
-    if(videoTimer != None):
-        videoTimer.cancel()
-        videoTimer = None
+    # global videoTimer
+    # if(videoTimer != None):
+    #     videoTimer.cancel()
+    #     videoTimer = None
+
+    global unfinishedClients
+    unfinishedClients = []
     
     socketio.emit('Event_stopVideo', broadcast=True)
     
