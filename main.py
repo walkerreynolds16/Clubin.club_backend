@@ -363,6 +363,7 @@ def handleConnection(user):
 def handleDisconnection(user):
     global unfinishedClients
     global clients
+    global djQueue
 
     print(user + " has disconnected")
     
@@ -374,6 +375,11 @@ def handleDisconnection(user):
     for item in unfinishedClients:
         if(item['user'] == user):
             unfinishedClients.remove(item)
+
+    for item in djQueue:
+        if(item == user):
+            djQueue.remove(item)
+
 
     global currentDJ
     global isSomeoneDJing
