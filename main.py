@@ -18,6 +18,9 @@ import datetime
 import threading
 import time
 
+
+version = '0.1'
+
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
 
@@ -340,6 +343,11 @@ def executeRequest(playlistId, numOfResults, nextPageToken=''):
     r = requests.get(url)
     return json.loads(r.text)
 
+@app.route('/getCurrentVersion', methods=['GET'])
+def getCurrentVersion():
+    global version
+
+    return json.dumps({'version': version})
 
 @socketio.on('Event_userConnected')
 def handleConnection(user):
@@ -396,7 +404,7 @@ def handleDisconnection(user):
     print("clients")
     print(clients)
 
-    handleChatMessage({'user': 'server', 'message': user + ' has disconnected'})
+    handleChatMessage({'user': 'Server', 'message': user + ' has disconnected'})
 
     data = {'user': user, 'clients': clients}
 
