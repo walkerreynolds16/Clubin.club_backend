@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.1'
+version = '0.101'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -141,8 +141,7 @@ def setPlaylist():
 
         else:
             result = collection.update_one(
-                {'$and': [{'playlists.playlistTitle': playlistTitle},
-                        {'username': username}]},
+                {'$and': [{'playlists.playlistTitle': playlistTitle},{'username': username}]},
                 {'$set': {'playlists.$.playlistVideos': playlistVideos}},
                 upsert=True)
 
@@ -213,6 +212,9 @@ def login():
     username = request.json['username']
     password = request.json['password']
 
+    if(len(username) > 32 or len(password) > 128 or 'accounts' in username or 'accounts' in password or 'playlist' in username or 'playlist' in password):
+        return 'fuck you'
+
     # Connect to database and get instance of the DB
     client = MongoClient(DBURL + ":27017")
     db = client.PlugDJClone
@@ -227,8 +229,7 @@ def login():
 
     # The username does not exist, make a new entry in the accounts DB
     if(doesUsernameExist == None):
-        result = collection.insert_one(
-            {'username': username, 'password': password})
+        result = collection.insert_one({'username': username, 'password': password})
 
         # To make things easier down the line, generate a new playlists record in the db
         # generateNewPlaylistRecord(username)
