@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.101'
+version = '0.102'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -204,8 +204,44 @@ def setCurrentPlaylist():
     else:
         return "User doesn't exist yet"
 
+@app.route('/setAllPlaylist', methods=['POST'])
+def setAllPlaylist():
+    username = request.json['username']
+    playlists = request.json['playlists']
 
+    # Connect to database and get instance of the DB
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
 
+    # Get instance of the playlist collection
+    collection = db['playlists']
+
+    # Check if user exists yet
+    doesUserExist = collection.find_one({'username': username})
+
+    if(doesUserExist):
+        res = collection.update_one(
+            {'username': username},
+            {'$set': {'playlists': playlists}})
+
+        return JSONEncoder().encode(res.raw_result)
+    else:
+        return "User not in database"
+
+@app.route('/deletePlaylistDocument', methods=['POST'])
+def deletePlaylistDocument():
+    username = request.json['username']
+
+    # Connect to database and get instance of the DB
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    # Get instance of the playlist collection
+    collection = db['playlists']
+
+    res = collection.delete_one({'username': username})
+
+    return JSONEncoder().encode(res.deleted_count)
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -304,8 +340,10 @@ def createPlugDJPlaylistFromYoutubePlaylist():
 
     doesUserExist = collection.find_one({'username': username})
 
+    # User doesn't exist yet in the playlists collection
     if(not doesUserExist):
-        return 'User does not exist'
+        result = collection.insert_one({'username': username, 'playlists': [newPlaylist], 'currentPlaylist': newPlaylist})
+        return JSONEncoder().encode(result.acknowledged)
     else:
         res = collection.update_one({'username': username}, {'$push': {'playlists': newPlaylist}})
         return JSONEncoder().encode(res.raw_result)
