@@ -36,6 +36,10 @@ clients = []
 djQueue = []
 unfinishedClients = []
 
+wooters = []
+mehers = []
+grabbers = []
+
 # https://git.heroku.com/plug-dj-clone-api.git
 
 # thebigcluster-x0vu6.mongodb.net
@@ -350,6 +354,17 @@ def getCurrentVersion():
 
     return json.dumps({'version': version})
 
+@app.route('/getCurrentVideoMetrics', methods=['GET'])
+def getCurrentVideoMetrics():
+    global wooters
+    global mehers
+    global grabbers
+
+    return json.dumps({'wooters': wooters, 'mehers': mehers, 'grabbers': grabbers})
+
+
+
+
 @socketio.on('Event_userConnected')
 def handleConnection(user):
     print(user + ' is connecting')
@@ -519,7 +534,44 @@ def handleUserFinishingVideo(user):
 
     if(finishedClientsPercentage >= .75):
         determineNextVideo()
-    
+
+@socketio.on('Event_Woot')
+def handleUserWooting(data):
+    global wooters
+
+    if(data['wooting']):
+        wooters.append(data['user'])
+    else:
+        wooters.remove(data['user'])
+
+    data = {'wooters': wooters}
+
+    socketio.emit('Event_wootChanged', data, broadcast=True)
+
+@socketio.on('Event_Meh')
+def handleUserMehing(data):
+    global mehers
+
+    if(data['mehing']):
+        mehers.append(data['user'])
+    else:
+        mehers.remove(data['user'])
+
+    data = {'mehers': mehers}
+
+    socketio.emit('Event_mehChanged', data, broadcast=True)
+
+@socketio.on('Event_Grab')
+def handleUserGrabbing(data):
+    global grabbers
+
+    grabbers.append(data['user'])
+
+    data = {'grabbers': grabbers}
+
+    socketio.emit('Event_grabChanged', data, broadcast=True)
+
+
 
 def sendNewVideoToClients(nextUser):
     # Get next video from next DJ
@@ -598,6 +650,14 @@ def determineNextVideo():
     global currentDJ
     global currentVideoId
     global isSomeoneDJing
+
+    global wooters
+    global mehers
+    global grabbers
+
+    wooters = []
+    mehers = []
+    grabbers = []
 
     print("** Determining next video **")
     print('Current DJ in determineVideo = ' + currentDJ)
