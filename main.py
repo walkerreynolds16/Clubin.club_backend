@@ -494,13 +494,15 @@ def handleJoinDJ(data):
 
 @socketio.on('Event_sendChatMessage')
 def handleChatMessage(data):
+    currentDT = datetime.datetime.now()
     user = data['user']
     message = data['message']
+    time = currentDT.strftime("%H:%M:%S")
 
     # print(user + ' : ' + message)
 
     emit('Event_receiveChatMessage', {
-         'user': user, 'message': message}, broadcast=True)
+         'time':time, 'user': user, 'message': message}, broadcast=True)
 
 
 @socketio.on('Event_leaveDJ')
