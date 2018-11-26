@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.310'
+version = '0.320'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
