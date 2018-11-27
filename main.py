@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.330'
+version = '0.340'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -40,10 +40,6 @@ wooters = []
 mehers = []
 grabbers = []
 
-# https://git.heroku.com/plug-dj-clone-api.git
-
-# thebigcluster-x0vu6.mongodb.net
-# mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true
 DBURL = "mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true"
 # DBURL = 'localhost'
 
@@ -597,9 +593,19 @@ def handleUserWooting(data):
     else:
         wooters.remove(data['user'])
 
-    data = {'wooters': wooters}
+    resData = {'wooters': wooters}
 
-    socketio.emit('Event_wootChanged', data, broadcast=True)
+    socketio.emit('Event_wootChanged', resData, broadcast=True)
+
+    # Ternary Operator, but i dont like how it looks
+    # updateaccountMetrics(currentDJ, 'woot', 1) if data['wooting'] else updateaccountMetrics(currentDJ, 'woot', -1)
+    if(data['wooting']):
+        updateaccountMetrics(currentDJ, 'woot', 1)
+    else:
+        updateaccountMetrics(currentDJ, 'woot', -1)
+    
+    
+
 
 @socketio.on('Event_Meh')
 def handleUserMehing(data):
@@ -610,9 +616,14 @@ def handleUserMehing(data):
     else:
         mehers.remove(data['user'])
 
-    data = {'mehers': mehers}
+    resData = {'mehers': mehers}
 
-    socketio.emit('Event_mehChanged', data, broadcast=True)
+    socketio.emit('Event_mehChanged', resData, broadcast=True)
+
+    if(data['mehing']):
+        updateaccountMetrics(currentDJ, 'meh', 1)
+    else:
+        updateaccountMetrics(currentDJ, 'meh', -1)
 
 @socketio.on('Event_Grab')
 def handleUserGrabbing(data):
@@ -623,6 +634,58 @@ def handleUserGrabbing(data):
     data = {'grabbers': grabbers}
 
     socketio.emit('Event_grabChanged', data, broadcast=True)
+
+    updateaccountMetrics(currentDJ, 'grab', 1)
+
+# Function called when woot/meh/grab is received, updates DB with new woots metrics
+# type = "woot" or "meh" or "grab"
+# inc = 1 or -1
+def updateaccountMetrics(username, type, inc):
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    # Get instance of the playlist collection
+    collection = db['accountMetrics']
+
+    doesUserExit = collection.find_one({'username': username})
+
+    if(doesUserExit == None):
+        woots = 0
+        mehs = 0
+        grabs = 0
+
+        if(type == 'woot'):
+            woots += 1
+        elif(type == 'meh'):
+            mehs += 1
+        elif(type == 'grab'):
+            grabs += 1
+
+        res = collection.insert_one({'username': username, 'woots': woots, 'mehs': mehs, 'grabs': grabs})
+
+        # print("Update account Metrics Res")
+        # print(res)
+
+    else:
+        woots = doesUserExit["woots"]
+        mehs = doesUserExit["mehs"]
+        grabs = doesUserExit["grabs"]
+
+        res = None
+
+        if(type == 'woot'):
+            # woots += inc
+            res = collection.update_one({'username': username}, {'$set': {'woots': doesUserExit['woots'] + inc}})
+        elif(type == 'meh'):
+            # mehs += inc
+            res = collection.update_one({'username': username}, {'$set': {'mehs': doesUserExit['mehs'] + inc}})
+        elif(type == 'grab'):
+            # grabs += inc
+            res = collection.update_one({'username': username}, {'$set': {'grabs': doesUserExit['grabs'] + inc}})
+
+        # print("Update account Metrics Res")
+        # print(res)
+        
 
 
 
