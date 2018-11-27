@@ -247,6 +247,14 @@ def deletePlaylistDocument():
 
     return JSONEncoder().encode(res.deleted_count)
 
+
+def isUsernameInClients(username):
+    for user in clients:
+        if(user['user'] == username):
+            return True
+
+    return False
+
 @app.route('/login', methods=['POST'])
 def login():
     username = request.json['username']
@@ -254,6 +262,11 @@ def login():
 
     if(len(username) > 32 or len(password) > 128 or 'accounts' in username or 'accounts' in password or 'playlist' in username or 'playlist' in password):
         return 'fuck you'
+
+    print(clients)
+    if(isUsernameInClients(username)):
+        print('user already connected')
+        return 'user already connected'
 
     # Connect to database and get instance of the DB
     client = MongoClient(DBURL + ":27017")
