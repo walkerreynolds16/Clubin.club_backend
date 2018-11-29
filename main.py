@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.340'
+version = '0.341'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -409,7 +409,10 @@ def getCurrentVideoMetrics():
 
     return json.dumps({'wooters': wooters, 'mehers': mehers, 'grabbers': grabbers})
 
-
+@app.route('/getDJQueue', methods=['GET'])
+def getDJQueue():
+    global djQueue
+    return json.dumps(djQueue)
 
 
 @socketio.on('Event_userConnected')
@@ -582,6 +585,7 @@ def handleUserFinishingVideo(user):
     print('finishedClientsPercentage = ' + str(finishedClientsPercentage))
 
     if(finishedClientsPercentage >= .75):
+        unfinishedClients = []
         determineNextVideo()
 
 @socketio.on('Event_Woot')
