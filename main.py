@@ -428,7 +428,7 @@ def handleConnection(user):
     print("clients")
     print(clients)
 
-    data = {'user': user, 'clients': clients}
+    data = {'user': user, 'clients': clients, 'djQueue': djQueue}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
 
