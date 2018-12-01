@@ -584,7 +584,7 @@ def handleUserFinishingVideo(user):
 
     print('finishedClientsPercentage = ' + str(finishedClientsPercentage))
 
-    if(finishedClientsPercentage >= .75):
+    if(finishedClientsPercentage >= .66):
         unfinishedClients = []
         determineNextVideo()
 
