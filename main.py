@@ -7,19 +7,20 @@ os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
 from flask import Flask, request, jsonify, json
 from flask_cors import CORS
 from pymongo import MongoClient
-from bson import ObjectId, Timestamp
+from bson import ObjectId, Timestamp, json_util
 from flask_socketio import SocketIO, send, emit
 
 
 import isodate
 import json
 import requests
-import datetime
+from datetime import datetime, timedelta
 import threading
 import time
+import pytz
 
 
-version = '0.400'
+version = '0.420'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -29,6 +30,9 @@ currentVideoStartTime = None
 currentVideoId = None
 delayTime = 1.0
 currentVideoTitle = ''
+
+determiningVideo = False
+recentInsertedId = None
 
 videoTimer = None
 
@@ -163,7 +167,30 @@ def setPlaylist():
 
         return JSONEncoder().encode(result.raw_result)
 
-    
+@app.route('/getRecentVideos', methods=['GET'])
+def getRecentVideos():
+    mins = request.args['minutes']
+    hrs = request.args['hours']
+
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['videoHistory']
+
+    now = datetime.utcnow()
+    threshold = now - timedelta(hours=int(hrs), minutes=int(mins))
+
+
+    res = collection.find({'timeStamp':{'$gte': threshold}})
+
+    resList = []
+
+    for item in res:
+        print(item)
+        resList.append(item)
+
+    return json.dumps(resList, default=json_util.default)
+
 
 
 @app.route('/deleteVideoInPlaylist', methods=['POST'])
@@ -437,9 +464,15 @@ def handleConnection(user):
 
     clients.append({'user': user, 'clientId': request.sid})
 
+    print(user + ' is joining the unfinished clients')
+    
+
     # if someone is playing a video, the new connection must be added to the unfinished clients
     if(isSomeoneDJing):
         unfinishedClients.append({'user': user, 'clientId': request.sid})
+
+    print("unfinishedClients")
+    print(unfinishedClients)
 
     print("clients")
     print(clients)
@@ -526,10 +559,10 @@ def handleJoinDJ(data):
 
 @socketio.on('Event_sendChatMessage')
 def handleChatMessage(data):
-    currentDT = datetime.datetime.now()
     user = data['user']
     message = data['message']
-    time = currentDT.strftime("%H:%M:%S")
+    tz = pytz.timezone('America/New_York')
+    time = datetime.now(tz).strftime("%H:%M:%S")
 
     # print(user + ' : ' + message)
 
@@ -605,32 +638,35 @@ def handleSkipRequest(data):
 def handleUserFinishingVideo(user):
     global unfinishedClients
     global clients
+    global determiningVideo
 
     print(user + ' finishing watching the video')
 
-    for item in unfinishedClients:
-        if(item['user'] == user):
-            unfinishedClients.remove(item)
+    if(not determiningVideo):
+        for item in unfinishedClients:
+            if(item['user'] == user):
+                unfinishedClients.remove(item)
 
-    clientsLength = len(clients)
-    unfinishedClientsLength = len(unfinishedClients)
-    numOfFinishedClients = clientsLength - unfinishedClientsLength
+        clientsLength = len(clients)
+        unfinishedClientsLength = len(unfinishedClients)
+        numOfFinishedClients = clientsLength - unfinishedClientsLength
 
-    print('All Clients')
-    print(clients)
-    print()
+        print('All Clients')
+        print(clients)
+        print()
 
-    print('Unfinished clients')
-    print(unfinishedClients)
-    print()
+        print('Unfinished clients')
+        print(unfinishedClients)
+        print()
 
-    finishedClientsPercentage = float(numOfFinishedClients / clientsLength)
+        finishedClientsPercentage = float(numOfFinishedClients / clientsLength)
 
-    print('finishedClientsPercentage = ' + str(finishedClientsPercentage))
+        print('finishedClientsPercentage = ' + str(finishedClientsPercentage))
 
-    if(finishedClientsPercentage >= .66):
-        unfinishedClients = []
-        determineNextVideo()
+        if(finishedClientsPercentage >= .66):
+            determiningVideo = True
+            determineNextVideo()
+    
 
 @socketio.on('Event_Woot')
 def handleUserWooting(data):
@@ -770,6 +806,7 @@ def sendNewVideoToClients(nextUser):
 
     global currentVideoId
     global currentVideoTitle
+    global determiningVideo
     currentVideoId = data['videoId']
     currentVideoTitle = data['videoTitle']
 
@@ -787,8 +824,10 @@ def sendNewVideoToClients(nextUser):
     print('emitting to clients \n')
     socketio.emit('Event_nextVideo', data, broadcast=True)
 
-    global unfinishedClients
+    determiningVideo = False
 
+    global unfinishedClients
+    unfinishedClients = []
     # Adding all connected clients to a waiting list
     unfinishedClients.extend(clients)
 
@@ -806,7 +845,45 @@ def sendNewVideoToClients(nextUser):
     playlist['playlistVideos'].append(nextVideo)
 
     collection.update_one({'username': nextUser}, {'$set': {'currentPlaylist': playlist}})
+
+    storeVideoInHistory(nextVideo, nextUser)
+
+
     return None
+
+def storeVideoInHistory(video, nextUser):
+    tz = pytz.timezone('America/New_York')
+    currentTime2 = datetime.now(tz)
+    print(currentTime2)
+
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['videoHistory']
+
+    data = {"video": video, "username": nextUser, "timeStamp": currentTime2, "woots": 0, "mehs": 0, "grabs": 0}
+
+    res = collection.insert_one(data)
+    print(res.inserted_id)
+
+    global recentInsertedId
+    recentInsertedId = res.inserted_id
+
+def updateVideoHistoryMetrics(wooters, mehers, grabbers):
+    global recentInsertedId
+
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['videoHistory']
+
+    if(recentInsertedId != None):
+        res = collection.update_one({'_id': ObjectId(recentInsertedId)},{"$set": {
+                                                                                    "woots": len(wooters),
+                                                                                    "mehs": len(mehers),
+                                                                                    "grabs": len(grabbers)
+                                                                                }})
+        print(res)
 
 
 def determineNextVideo():
@@ -819,6 +896,8 @@ def determineNextVideo():
     global mehers
     global grabbers
     global skippers
+
+    updateVideoHistoryMetrics(wooters, mehers, grabbers)
 
     wooters = []
     mehers = []
