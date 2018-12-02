@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
 import pytz
 from pymongo import MongoClient
+from bson.objectid import ObjectId
+
 
 DBURL = "mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=false"
 
@@ -9,12 +11,22 @@ db = client.PlugDJClone
 
 collection = db['videoHistory']
 
-now = datetime.utcnow()
-threshold = now - timedelta(hours=12, minutes=0)
+# res = collection.find({'_id': ObjectId('5c0371f2abad402084fbfd9d')})
 
-print(threshold)
+res = collection.update_one({'_id': ObjectId('5c0371f2abad402084fbfd9d')},{"$set": {
+                                                                                    "woots": 5,
+                                                                                    "mehs": 0,
+                                                                                    "grabs": 3
+                                                                                }})
 
-res = collection.find({'timeStamp':{'$gte': threshold}})
+# from socketIO_client import SocketIO
 
-for item in res:
-    print(item)
+# def handleNextVideo(data):
+#     print(data['videoTitle'])
+#     with open(file, 'w') as f:
+#         f.write(data['videoTitle'])
+
+
+# socketIO = SocketIO('https://plug-dj-clone-api.herokuapp.com)
+# socketIO.on('Event_nextVideo', handleNextVideo)
+# socketIO.wait()
