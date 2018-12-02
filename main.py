@@ -831,7 +831,7 @@ def sendNewVideoToClients(nextUser):
 
     collection.update_one({'username': nextUser}, {'$set': {'currentPlaylist': playlist}})
 
-    storeVideoInHistory(nextVideo, nextUser)
+    storeVideoInHistory({"videoId": nextVideo['videoId'], 'videoTitle': nextVideo['videoTitle']}, nextUser)
 
 
     return None
