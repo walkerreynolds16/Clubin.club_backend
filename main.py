@@ -34,6 +34,8 @@ currentVideoTitle = ''
 determiningVideo = False
 recentInsertedId = None
 
+chaosSkipMode = False
+
 videoTimer = None
 
 clients = []
@@ -477,7 +479,7 @@ def handleConnection(user):
     print("clients")
     print(clients)
 
-    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers}
+    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
 
@@ -604,6 +606,7 @@ def handleSkipRequest(data):
 
     global unfinishedClients
     global clients
+    global chaosSkipMode
 
     username = data['user']
     isSkipping = data['isSkipping']
@@ -611,6 +614,9 @@ def handleSkipRequest(data):
     
     if(override):
         handleChatMessage({'user':'Server', 'message': 'This video has been skipped by the DJ or an admin'})
+        determineNextVideo()
+    elif(chaosSkipMode):
+        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by ' + username})
         determineNextVideo()
     else:
         if(isSkipping):
@@ -632,6 +638,18 @@ def handleSkipRequest(data):
             handleChatMessage({'user':'Server', 'message':'The video has been skipped by ' + str(skippers)})
             determineNextVideo()
     
+@socketio.on('Event_toggleChaosSkipMode')
+def toggleChaosSkipMode():
+    global chaosSkipMode
+
+    chaosSkipMode = not chaosSkipMode
+    
+    socketio.emit('Event_chaosSkipModeChanged', chaosSkipMode, broadcast=True)
+
+    if(chaosSkipMode):
+        handleChatMessage({'user': 'Server', 'message': 'Chaos Skip Mode has been enabled'})
+    else:
+        handleChatMessage({'user': 'Server', 'message': 'Chaos Skip Mode has been disabled'})
 
 
 @socketio.on('Event_userFinishedVideo')
