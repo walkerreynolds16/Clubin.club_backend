@@ -64,6 +64,21 @@ def getPlaylists():
         return JSONEncoder().encode([])
 
 
+@app.route('/getAdmins', methods=['GET'])
+def getAdmins():
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['admins']
+
+    q = collection.find({})
+
+    admins = []
+    for admin in q:
+        admins.append(admin['username'])
+
+    return JSONEncoder().encode(admins)
+
 @app.route('/addVideoToPlaylist', methods=['POST'])
 def addVideoToPlaylist():
 
