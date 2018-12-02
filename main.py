@@ -20,7 +20,7 @@ import time
 import pytz
 
 
-version = '0.430'
+version = '0.440'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -482,6 +482,7 @@ def handleConnection(user):
     data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
+    sendUpdatedLeaderboards()
 
 
 @socketio.on('Event_userDisconnected')
@@ -705,6 +706,8 @@ def handleUserWooting(data):
         updateaccountMetrics(currentDJ, 'woot', 1)
     else:
         updateaccountMetrics(currentDJ, 'woot', -1)
+
+    sendUpdatedLeaderboards()
     
     
 
@@ -727,6 +730,9 @@ def handleUserMehing(data):
     else:
         updateaccountMetrics(currentDJ, 'meh', -1)
 
+    sendUpdatedLeaderboards()
+    
+
 @socketio.on('Event_Grab')
 def handleUserGrabbing(data):
     global grabbers
@@ -738,6 +744,28 @@ def handleUserGrabbing(data):
     socketio.emit('Event_grabChanged', data, broadcast=True)
 
     updateaccountMetrics(currentDJ, 'grab', 1)
+
+    sendUpdatedLeaderboards()
+
+
+def sendUpdatedLeaderboards():
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['accountMetrics']
+
+    sortedWoots = collection.find({}).sort("woots", -1)
+
+    resWoots = []
+
+    for item in sortedWoots:
+        item.pop('_id', None)
+        resWoots.append(item)
+    
+    socketio.emit('Event_leaderboardChanged', resWoots, broadcast=True)    
+
+
+
 
 # Function called when woot/meh/grab is received, updates DB with new woots metrics
 # type = "woot" or "meh" or "grab"
