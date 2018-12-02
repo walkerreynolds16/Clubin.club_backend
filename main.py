@@ -20,7 +20,7 @@ import time
 import pytz
 
 
-version = '0.420'
+version = '0.440'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -33,6 +33,8 @@ currentVideoTitle = ''
 
 determiningVideo = False
 recentInsertedId = None
+
+chaosSkipMode = False
 
 videoTimer = None
 
@@ -68,6 +70,21 @@ def getPlaylists():
     else:
         return JSONEncoder().encode([])
 
+
+@app.route('/getAdmins', methods=['GET'])
+def getAdmins():
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['admins']
+
+    q = collection.find({})
+
+    admins = []
+    for admin in q:
+        admins.append(admin['username'])
+
+    return JSONEncoder().encode(admins)
 
 @app.route('/addVideoToPlaylist', methods=['POST'])
 def addVideoToPlaylist():
@@ -462,9 +479,10 @@ def handleConnection(user):
     print("clients")
     print(clients)
 
-    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers}
+    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
+    sendUpdatedLeaderboards()
 
 
 @socketio.on('Event_userDisconnected')
@@ -589,6 +607,7 @@ def handleSkipRequest(data):
 
     global unfinishedClients
     global clients
+    global chaosSkipMode
 
     username = data['user']
     isSkipping = data['isSkipping']
@@ -596,6 +615,9 @@ def handleSkipRequest(data):
     
     if(override):
         handleChatMessage({'user':'Server', 'message': 'This video has been skipped by the DJ or an admin'})
+        determineNextVideo()
+    elif(chaosSkipMode):
+        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by ' + username})
         determineNextVideo()
     else:
         if(isSkipping):
@@ -617,6 +639,18 @@ def handleSkipRequest(data):
             handleChatMessage({'user':'Server', 'message':'The video has been skipped by ' + str(skippers)})
             determineNextVideo()
     
+@socketio.on('Event_toggleChaosSkipMode')
+def toggleChaosSkipMode():
+    global chaosSkipMode
+
+    chaosSkipMode = not chaosSkipMode
+    
+    socketio.emit('Event_chaosSkipModeChanged', chaosSkipMode, broadcast=True)
+
+    if(chaosSkipMode):
+        handleChatMessage({'user': 'Server', 'message': 'Chaos Skip Mode has been enabled'})
+    else:
+        handleChatMessage({'user': 'Server', 'message': 'Chaos Skip Mode has been disabled'})
 
 
 @socketio.on('Event_userFinishedVideo')
@@ -672,6 +706,8 @@ def handleUserWooting(data):
         updateaccountMetrics(currentDJ, 'woot', 1)
     else:
         updateaccountMetrics(currentDJ, 'woot', -1)
+
+    sendUpdatedLeaderboards()
     
     
 
@@ -694,6 +730,9 @@ def handleUserMehing(data):
     else:
         updateaccountMetrics(currentDJ, 'meh', -1)
 
+    sendUpdatedLeaderboards()
+    
+
 @socketio.on('Event_Grab')
 def handleUserGrabbing(data):
     global grabbers
@@ -705,6 +744,28 @@ def handleUserGrabbing(data):
     socketio.emit('Event_grabChanged', data, broadcast=True)
 
     updateaccountMetrics(currentDJ, 'grab', 1)
+
+    sendUpdatedLeaderboards()
+
+
+def sendUpdatedLeaderboards():
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['accountMetrics']
+
+    sortedWoots = collection.find({}).sort("woots", -1)
+
+    resWoots = []
+
+    for item in sortedWoots:
+        item.pop('_id', None)
+        resWoots.append(item)
+    
+    socketio.emit('Event_leaderboardChanged', resWoots, broadcast=True)    
+
+
+
 
 # Function called when woot/meh/grab is received, updates DB with new woots metrics
 # type = "woot" or "meh" or "grab"
