@@ -19,7 +19,7 @@ import threading
 import time
 
 
-version = '0.370'
+version = '0.400'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -39,6 +39,7 @@ unfinishedClients = []
 wooters = []
 mehers = []
 grabbers = []
+skippers = []
 
 DBURL = "mongodb+srv://walker:onesouth@thebigcluster-x0vu6.mongodb.net/test?retryWrites=true"
 # DBURL = 'localhost'
@@ -428,7 +429,7 @@ def handleConnection(user):
     print("clients")
     print(clients)
 
-    data = {'user': user, 'clients': clients, 'djQueue': djQueue}
+    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
 
@@ -438,6 +439,7 @@ def handleDisconnection(user):
     global unfinishedClients
     global clients
     global djQueue
+    global skippers
 
     print(user + " has disconnected")
     
@@ -454,6 +456,9 @@ def handleDisconnection(user):
         if(item == user):
             djQueue.remove(item)
 
+    for item in skippers:
+        if(item == user):
+            skippers.remove(item)
 
     global currentDJ
     global isSomeoneDJing
@@ -472,7 +477,7 @@ def handleDisconnection(user):
 
     handleChatMessage({'user': 'Server', 'message': user + ' has disconnected'})
 
-    data = {'user': user, 'clients': clients}
+    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers}
 
     socketio.emit('Event_userDisconnecting', data, broadcast=True)
 
@@ -513,8 +518,7 @@ def handleChatMessage(data):
 
     # print(user + ' : ' + message)
 
-    emit('Event_receiveChatMessage', {
-         'time':time, 'user': user, 'message': message}, broadcast=True)
+    emit('Event_receiveChatMessage', {'time':time, 'user': user, 'message': message}, broadcast=True)
 
 
 @socketio.on('Event_leaveDJ')
@@ -551,11 +555,36 @@ def handleSkipRequest(data):
     # TODO count the amount of skip requests and only skip when the majority of people want to skip
 
     global unfinishedClients
+    global clients
 
-    unfinishedClients = []
+    username = data['user']
+    isSkipping = data['isSkipping']
+    override = data['overrideSkip']
+    
+    if(override):
+        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by the DJ or an admin'})
+        determineNextVideo()
+    else:
+        if(isSkipping):
+            skippers.append(username)
+        else:
+            skippers.remove(username)
+
+        print("Skippers = ")
+        print(skippers)
 
 
-    determineNextVideo()
+        resData = {'skippers': skippers}    
+
+        socketio.emit('Event_skipChanged', resData, broadcast=True)
+
+        skipPercent = float(len(skippers) / len(clients))
+
+        if(skipPercent > .50):
+            handleChatMessage({'user':'Server', 'message':'The video has been skipped by ' + str(skippers)})
+            determineNextVideo()
+    
+
 
 @socketio.on('Event_userFinishedVideo')
 def handleUserFinishingVideo(user):
@@ -774,10 +803,13 @@ def determineNextVideo():
     global wooters
     global mehers
     global grabbers
+    global skippers
 
     wooters = []
     mehers = []
     grabbers = []
+    skippers = []
+    unfinishedClients = []
 
     print("** Determining next video **")
     print('Current DJ in determineVideo = ' + currentDJ)
