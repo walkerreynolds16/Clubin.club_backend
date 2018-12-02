@@ -7,19 +7,20 @@ os.environ['EVENTLET_NO_GREENDNS'] = 'yes'
 from flask import Flask, request, jsonify, json
 from flask_cors import CORS
 from pymongo import MongoClient
-from bson import ObjectId, Timestamp
+from bson import ObjectId, Timestamp, json_util
 from flask_socketio import SocketIO, send, emit
 
 
 import isodate
 import json
 import requests
-import datetime
+from datetime import datetime, timedelta
 import threading
 import time
+import pytz
 
 
-version = '0.400'
+version = '0.410'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -148,7 +149,30 @@ def setPlaylist():
 
         return JSONEncoder().encode(result.raw_result)
 
-    
+@app.route('/getRecentVideos', methods=['GET'])
+def getRecentVideos():
+    mins = request.args['minutes']
+    hrs = request.args['hours']
+
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['videoHistory']
+
+    now = datetime.utcnow()
+    threshold = now - timedelta(hours=int(hrs), minutes=int(mins))
+
+
+    res = collection.find({'timeStamp':{'$gte': threshold}})
+
+    resList = []
+
+    for item in res:
+        print(item)
+        resList.append(item)
+
+    return json.dumps(resList, default=json_util.default)
+
 
 
 @app.route('/deleteVideoInPlaylist', methods=['POST'])
@@ -511,10 +535,10 @@ def handleJoinDJ(data):
 
 @socketio.on('Event_sendChatMessage')
 def handleChatMessage(data):
-    currentDT = datetime.datetime.now()
     user = data['user']
     message = data['message']
-    time = currentDT.strftime("%H:%M:%S")
+    tz = pytz.timezone('America/New_York')
+    time = datetime.now(tz).strftime("%H:%M:%S")
 
     # print(user + ' : ' + message)
 
@@ -791,7 +815,25 @@ def sendNewVideoToClients(nextUser):
     playlist['playlistVideos'].append(nextVideo)
 
     collection.update_one({'username': nextUser}, {'$set': {'currentPlaylist': playlist}})
+
+    storeVideoInHistory(nextVideo, nextUser)
+
+
     return None
+
+def storeVideoInHistory(video, nextUser):
+    tz = pytz.timezone('America/New_York')
+    currentTime2 = datetime.now(tz)
+    print(currentTime2)
+
+    client = MongoClient(DBURL + ":27017")
+    db = client.PlugDJClone
+
+    collection = db['videoHistory']
+
+    data = {"video": video, "username": nextUser, "timeStamp": currentTime2}
+
+    playlist = collection.insert_one(data)
 
 
 def determineNextVideo():
