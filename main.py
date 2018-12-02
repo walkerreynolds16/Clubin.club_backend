@@ -20,7 +20,7 @@ import time
 import pytz
 
 
-version = '0.420'
+version = '0.430'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
