@@ -245,7 +245,8 @@ def setCurrentPlaylist():
             {'username': username},
             {'$set': {'currentPlaylist': playlist}})
 
-        return JSONEncoder().encode(res.raw_result)
+
+        return json.dumps([])
     else:
         return "User doesn't exist yet"
 
