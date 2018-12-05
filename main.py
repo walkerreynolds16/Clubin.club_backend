@@ -20,7 +20,7 @@ import time
 import pytz
 
 
-version = '0.440'
+version = '0.450'
 
 youtubeAPIKey = 'AIzaSyD7edp0KrX7oft2f-zL2uEnQFhW4Uj5OvE'
 isSomeoneDJing = False
@@ -245,7 +245,8 @@ def setCurrentPlaylist():
             {'username': username},
             {'$set': {'currentPlaylist': playlist}})
 
-        return JSONEncoder().encode(res.raw_result)
+
+        return json.dumps([])
     else:
         return "User doesn't exist yet"
 
@@ -892,7 +893,7 @@ def sendNewVideoToClients(nextUser):
 
     collection.update_one({'username': nextUser}, {'$set': {'currentPlaylist': playlist}})
 
-    storeVideoInHistory(nextVideo, nextUser)
+    storeVideoInHistory({"videoId": nextVideo['videoId'], 'videoTitle': nextVideo['videoTitle']}, nextUser)
 
 
     return None
