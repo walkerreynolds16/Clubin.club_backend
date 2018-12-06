@@ -19,7 +19,7 @@ collection = db['accountMetrics']
 #                                                                                     "grabs": 3
 #                                                                                 }})
 
-# from socketIO_client import SocketIO
+from socketIO_client import SocketIO
 
 # def handleNextVideo(data):
 #     print(data['videoTitle'])
@@ -27,25 +27,25 @@ collection = db['accountMetrics']
 #         f.write(data['videoTitle'])
 
 
-# socketIO = SocketIO('https://plug-dj-clone-api.herokuapp.com)
-# socketIO.on('Event_nextVideo', handleNextVideo)
-# socketIO.wait()
+socketIO = SocketIO('https://plug-dj-clone-api.herokuapp.com', verify=False)
+socketIO.emit('Event_userDisconnected', 'connor')
+socketIO.wait()
 
-sortedWoots = collection.find({}).sort("woots", -1)
-sortedMehs = collection.find({}).sort("mehs", -1)
-sortedGrabs = collection.find({}).sort("grabs", -1)
+# sortedWoots = collection.find({}).sort("woots", -1)
+# sortedMehs = collection.find({}).sort("mehs", -1)
+# sortedGrabs = collection.find({}).sort("grabs", -1)
 
-for item in sortedWoots:
-    print(item)
+# for item in sortedWoots:
+#     print(item)
 
-print("***********")
+# print("***********")
 
-for item in sortedMehs:
-    print(item)
+# for item in sortedMehs:
+#     print(item)
 
-print("***********")
+# print("***********")
 
-for item in sortedGrabs:
-    print(item)
+# for item in sortedGrabs:
+#     print(item)
 
 
