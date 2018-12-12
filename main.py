@@ -483,6 +483,7 @@ def handleConnection(user):
     data = {"user": user, "clients": clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
+    handleChatMessage({'user': 'Server', 'message': user + ' has connected'})
     sendUpdatedLeaderboards()
 
 
