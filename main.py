@@ -465,7 +465,7 @@ def getDJQueue():
 def handleConnection(user):
     print(user + ' is connecting')
 
-    clients.append({'user': user, 'clientId': request.sid})
+    clients.append({"user": user, "clientId": request.sid})
 
     print(user + ' is joining the unfinished clients')
     
@@ -480,7 +480,7 @@ def handleConnection(user):
     print("clients")
     print(clients)
 
-    data = {'user': user, 'clients': clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
+    data = {"user": user, "clients": clients, 'djQueue': djQueue, 'skippers': skippers, 'chaosSkipMode': chaosSkipMode}
 
     socketio.emit('Event_userConnecting', data, broadcast=True)
     sendUpdatedLeaderboards()
