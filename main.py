@@ -892,7 +892,14 @@ def sendNewVideoToClients(nextUser):
 
     playlist['playlistVideos'].append(nextVideo)
 
+    # update the user's current playlist to their new playlist
     collection.update_one({'username': nextUser}, {'$set': {'currentPlaylist': playlist}})
+
+    # update the user's playlist with their new playlist
+    collection.update_one(
+                {'$and': [{'playlists.playlistTitle': playlist['playlistTitle']},{'username': nextUser}]},
+                {'$set': {'playlists.$.playlistVideos': playlist['playlistVideos']}},
+                upsert=True)
 
     storeVideoInHistory({"videoId": nextVideo['videoId'], 'videoTitle': nextVideo['videoTitle']}, nextUser)
 
