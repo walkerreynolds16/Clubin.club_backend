@@ -616,10 +616,10 @@ def handleSkipRequest(data):
     override = data['overrideSkip']
     
     if(override):
-        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by the DJ or an admin'})
+        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by the DJ or an admin' + '. Song was: ' + currentVideoTitle})
         determineNextVideo()
     elif(chaosSkipMode):
-        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by ' + username})
+        handleChatMessage({'user':'Server', 'message': 'This video has been skipped by ' + username + '. Song was: ' + currentVideoTitle})
         determineNextVideo()
     else:
         if(isSkipping):
@@ -638,7 +638,7 @@ def handleSkipRequest(data):
         skipPercent = float(len(skippers) / len(clients))
 
         if(skipPercent > .50):
-            handleChatMessage({'user':'Server', 'message':'The video has been skipped by ' + str(skippers)})
+            handleChatMessage({'user':'Server', 'message':'The video has been skipped by ' + str(skippers) + '. Song was: ' + currentVideoTitle})
             determineNextVideo()
     
 @socketio.on('Event_toggleChaosSkipMode')
