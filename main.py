@@ -438,7 +438,7 @@ def createYoutubePlaylistObject(playlistId):
 
 def executeRequest(playlistId, numOfResults, nextPageToken=''):
     url = 'https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=' + playlistId + '&key=' + youtubeAPIKey + '&maxResults=' + str(numOfResults) + '&pageToken=' + nextPageToken
-    r = requests.get(url)
+    r = requests.get(url, headers={'referer': 'http://clubin.club'})
     return json.loads(r.text)
 
 @app.route('/getCurrentVersion', methods=['GET'])
@@ -998,17 +998,14 @@ def stopVideo():
     socketio.emit('Event_stopVideo', broadcast=True)
     
 
-
 def getVideoDuration(videoId):
     url = 'https://www.googleapis.com/youtube/v3/videos?key=' + youtubeAPIKey + '&id=' + str(videoId) + '&part=contentDetails'
-    r = requests.get(url)
+    r = requests.get(url, headers={'referer': 'http://clubin.club'})
     res = json.loads(r.text)
     duration = res['items'][0]['contentDetails']['duration']
 
     duration = isodate.parse_duration(duration).total_seconds()
     return duration
-
-
 
 
 class JSONEncoder(json.JSONEncoder):
