@@ -1,4 +1,4 @@
-eventlet==0.24.1
+eventlet==0.31.0
 Flask_SocketIO==3.0.2
 Flask_Cors==3.0.6
 requests==2.20.0
